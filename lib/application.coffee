@@ -10,7 +10,7 @@ module.exports = class Application
     @_after = {}
     @_before = {}
     @registry = require './registry'
-  
+
   _apply_after: (method_name) ->
     method(this) for method in @_after[method_name] if @_after[method_name]
   _apply_before: (method_name) ->
@@ -21,7 +21,7 @@ module.exports = class Application
 
   before: (method_name, callback) ->
     (@_before[method_name] ?= []).push callback
-  
+
   read_config_files: (config) ->
     files = Caboose.path.config.readdir_sync()
     env_dir = Caboose.path.config.join('environments', Caboose.env)
@@ -41,7 +41,7 @@ module.exports = class Application
       controller: require('./controller/builder').config
     }
     _(@config).extend(@plugins.config())
-    
+
     try
       @read_config_files @config
     catch e
@@ -51,7 +51,7 @@ module.exports = class Application
       Caboose.path.config.join('application'),
       Caboose.path.config.join('environments', Caboose.env)
     ]
-    
+
     next = =>
       return callback() if index is files.length
       try
@@ -60,7 +60,7 @@ module.exports = class Application
         return callback(e) unless /Cannot find module/.test(e.message)
         next()
     next()
-  
+
   run_initializers_in_path: (initializers_path, callback) ->
     return callback() unless initializers_path.exists_sync()
     files = initializers_path.readdir_sync()
@@ -73,22 +73,22 @@ module.exports = class Application
       catch e
         return callback(e)
     next()
-    
+
   run_initializers: (callback) ->
     @run_initializers_in_path Caboose.path.config.join('initializers'), callback
 
   initialize: (callback) ->
     return callback() if @_state.initialized
     return @_state.callbacks.push(callback) if @_state.initializing
-    
+
     @_apply_before 'initialize'
-    
+
     @_state.initializing = true
     @_state.callbacks = [callback]
-    
+
     @plugins = new Plugins()
     @plugins.load()
-    
+
     @router = new Router()
     @router.parse Caboose.path.config.join('routes').require()
     @configure (err) =>
@@ -100,11 +100,11 @@ module.exports = class Application
         if err?
           console.error(err.stack)
           process.exit(1)
-        
+
         @_apply_after('initialize')
         @_state.initialized = true
         delete @_state.initializing
-        
+
         c(this) for c in @_state.callbacks
         delete @_state.callbacks
 
@@ -113,17 +113,19 @@ module.exports = class Application
     return callback() if not @config.http.enabled
     @_apply_before 'boot'
     @http = express()
-    
+
     middleware = Caboose.path.config.join('middleware').require()
     middleware @http
-    
+
     if Caboose.env is 'production'
       @http.use express.errorHandler(dumpExceptions: true)
     else
       @http.use express.errorHandler(showStack: true, dumpExceptions: true)
-    
+
     @raw_http = @http.listen(@config.http.port)
     throw new Error("Could not listen on port #{@config.http.port}") unless @raw_http.address()
+
+    @raw_http.on('request', () -> console.log "New request")
 
     @_apply_after 'boot'
 
